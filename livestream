@@ -4,6 +4,7 @@
 # Supply your API token in the config file as explained by livestreamer's manual
 # Dependencies:
 #	- livestreamer
+#	- GNU Parallel
 #
 # Alias notes:
 # 	- Aliases must not include '.'
@@ -158,16 +159,40 @@ ping () {
 			fi
 		fi
 	else
-		# Ping all
+		# Create a list of [ALIAS] and [URL]
+		list=""
 		while read -r line; do
-			if [[ ${line:0:1} != '#' ]] && [[ $line != "" ]]; then
+			if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
 				alias=$(echo $line | cut -d " " -f 1)
 				url=$(echo $line | cut -d " " -f 2)
-				get_status $url
+				if [[ $list == "" ]]; then
+					list="${alias} ${url}"
+				else
+					list="${list}\n${alias} ${url}"
+				fi
 			fi
 		done < $channel
+		# Export get_all_status
+		export -f get_all_status
+		# Use the list and feed to get_all_status in parallel
+		# Tinker with -j# value
+		echo -e "${list}" | parallel -j0 -k get_all_status
 	fi
 	echo ""
+}
+
+# Get all status
+get_all_status() {
+	alias=$(echo $1 | cut -d " " -f 1)
+	url=$(echo $1 | cut -d " " -f 2)
+
+	error=$(livestreamer -j $url | grep error)
+	if [[ $error != "" ]]; then
+		printf "\e[0;31m%-14s\e[0m %-10s %-30s\n" "OFFLINE" "$alias" "$url"
+	else
+		printf "\e[0;32m%-14s\e[0m %-10s %-30s\n" "ONLINE" "$alias" "$url"
+	fi
+
 }
 
 # Print the status of the channel
