@@ -10,11 +10,13 @@
 # 	- Aliases must not include '.'
 #	- Aliases are case-sensitive
 #	- Aliases are unique
+#	- Aliases can not have same name as commands
 #
 # DNSheng, 2017
 
 # TODO:
 #	- Display title of streams (not possible just using livestreamer)
+#	- Commands to reorder stream list
 
 # Location of channel list
 channel="/home/$USER/.config/livestreamer/channels.txt"
@@ -56,8 +58,14 @@ add () {
 		echo "# Automatically generated channel list" >> $channel
 		echo -e "# Format: [ALIAS] [CHANNEL URL]\n" >> $channel
 	fi
+	
+	# Check if two arguments included
+	if [[ $# -lt 2 ]]; then
+		echo "Insufficient arguments..."
+		exit
+	fi
 
-	#Check if alias exists
+	# Check if alias exists
 	match $1
 	if [[ $? == 1 ]]; then
 		# Alias exists, overwrite prompt
@@ -227,7 +235,11 @@ match() {
 # Default behaviour, check if unknown command entered. Else, start stream
 defensive() {
 	match $1
-	if [[ $? == 0 ]]; then
+	match_val=$?
+	url=$(echo $1 | grep '\.')
+	
+	# Only accept valid URL or alias
+	if [[ $match_val == 0 ]] && [[ $url == "" ]]; then
 		echo "Error: Unknown command"
 		echo -e "Use the \"help\" command to display all commands."
 	else
@@ -267,7 +279,7 @@ stream() {
 	fi
 }
 
-# Distinguish between url and alias
+# Distinguish between url and alias (URLs have a '.' char)
 # Return:
 #		0 - URL
 #		1 - Alias

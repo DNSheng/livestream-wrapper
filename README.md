@@ -25,6 +25,8 @@ Aliases are stored in the same directory as the livestreamer config file:
 
 Aliases are case-sensitive and must be unique and not contain the '.' (period) character.
 
+Aliases must not have the same name as commands.
+
 To add an alias, use the command:
 ```
 livestream add ALIAS URL
