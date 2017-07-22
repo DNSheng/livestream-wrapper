@@ -76,9 +76,6 @@ Pinging is slow, especially if pinging all aliased channels as it is done so con
   - Transfer all arguments beyond $channel and $quality to livestreamer
   - Display titles of online channels
     - Can't be done with only livestreamer, need another tool
-  - Check for '.' character in aliases
-    - Deny creation of such aliases
-    - Warn of alias existence when scanning and pinging
   - Make pinging faster (parallel) (low priority - difficult)
   - Add commands to reorder alias list (low priority)
   - Checking channel status may need to be fixed if found unreliable

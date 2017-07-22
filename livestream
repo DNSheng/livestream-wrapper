@@ -21,11 +21,14 @@ channel="/home/$USER/.config/livestreamer/channels.txt"
 # Help
 help () {
 	echo ""
+	echo "livestream [COMMAND] [ARGUMENTS]"
+	echo ""
 	echo "An custom wrapper for livestreamer."
 	echo "Options:"
 	echo "	help	- Display help information."
-	echo "	add	- Add an alias. [ALIAS CHANNEL_URL]"
+	echo "	add	- Add an alias, or overwite an existing one [ALIAS] [CHANNEL_URL]"
 	echo "	remove	- Remove an alias. [ALIAS]"
+	echo "	list	- List all aliases and corresponding URLs"
 	echo "	ping	- Ping all aliased channels, or a specific alias/channel"
 	echo "		  for online availability"
 	echo ""
@@ -34,8 +37,10 @@ help () {
 	echo "Currently, additional arguments do not carry over."
 	echo "The alias file is located at $channel"
 	echo ""
-	echo "NOTE: - As additional arguments do not carry over, the config file for livestreamer must be set."
-	echo "      - The period character '.' cannot be included in an alias"
+	echo "NOTE: - As additional arguments do not carry over, the"
+	echo "        config file for livestreamer must be set."
+	echo "      - The period character '.' cannot be included in an alias."
+	echo "      - Aliases are unique and case-sensitive."
 	echo ""
 }
 
@@ -63,9 +68,14 @@ add () {
 			echo "Exiting..."
 		fi
 	else
-		# New alias, add
-		#echo "Adding alias $1 to $2..."
-		echo "$1 $2" >> $channel
+		# Check if alias contains '.'
+		defense=$(echo $1 | grep '\.')
+		if [[ $defense != "" ]]; then
+			echo "Warning: Invalid alias (contains '.' character)"
+			echo "Aborting..."
+		else
+			echo "$1 $2" >> $channel
+		fi
 	fi
 }
 
@@ -85,17 +95,34 @@ remove() {
 
 # List all channels and their aliases
 list() {
+	warning=0
+	affected=""
+
 	printf "\n%-10s %-30s\n" "[ALIAS]" "[URL]"
 	echo "----------------------------------------------------"
 
 	while read -r line; do
 		if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
 			alias=$(echo $line | cut -d " " -f 1)
+
+			# Check for a '.' character in each alias
+			defense=$(echo $alias | grep '\.')
+			if [[ $defense != "" ]]; then
+				warning=1
+				# Append alias to list of affected
+				affected="$affected $alias"
+			fi
+
 			url=$(echo $line | cut -d " " -f 2)
 			printf "%-10s %-30s\n" "$alias" "$url"
 		fi
 	done < $channel
-
+	
+	if [[ $warning != 0 ]]; then
+		echo ""
+		echo "Warning: Invalid alias(es) found:$affected"
+		echo "Please remove from the list"
+	fi
 	echo ""
 }
 
@@ -175,6 +202,7 @@ defensive() {
 	match $1
 	if [[ $? == 0 ]]; then
 		echo "Error: Unknown command"
+		echo -e "Use the \"help\" command to display all commands."
 	else
 		stream $1 $2
 	fi
@@ -186,8 +214,6 @@ stream() {
 		echo "No channel argument or alias supplied"
 	elif [[ $# -lt 2 ]]; then
 		echo "No quality argument supplied"
-	elif [[ $# -gt 2 ]]; then
-		echo "Too many arguments supplied"
 	else
 		# Check if it is an alias or url given
 		determine $1
