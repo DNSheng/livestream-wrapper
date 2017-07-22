@@ -10,14 +10,6 @@ A wrapper for livestreamer, written as a bash script.
 As the wrapper has yet to transfer other arguments to livestreamer, make sure that livestreamer's config file has been set up
 to ensure that custom options such as authenticator tokens and video players have been set.
 
-## Usage
-
-Like how livestreamer works, enter the [CHANNEL] and [QUALITY]:
-```
-livestream [CHANNEL] [QUALITY]
-```
-If no [QUALITY] is entered, it uses 'BEST' quality as default.
-
 ## Aliases:
 
 Adds alias functionality for oftenly used URLs. Aliases are stored and can be added, removed, and overwritten.
@@ -49,12 +41,15 @@ livestream remove ALIAS
 ```
  Aliases can also be removed by modifying the file within the config folder.
  
-#### Using aliases
+#### Using aliases (playing streams)
 
 Aliases are shorthand for URLs, thus take the place of any working URL for livestreamer.
 ```
 livestream ALIAS QUALITY  == livestream URL QUALITY
 ```
+The given order must be followed.
+
+If no QUALITY argument is supplied, then quality defaults to best.
 
 #### Listing aliases
 
