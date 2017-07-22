@@ -33,6 +33,8 @@ help () {
 	echo "		  for online availability"
 	echo ""
 	echo "Uses like livestreamer normally, but with added functionality (aliasing, pinging, etc.)"
+	echo "livestream [CHANNEL] [QUALITY]"
+	echo "If no [QUALITY] value entered, defaults to 'best'"
 	echo "Enter the alias/url and quality like normal."
 	echo "Currently, additional arguments do not carry over."
 	echo "The alias file is located at $channel"
@@ -212,13 +214,20 @@ defensive() {
 stream() {
 	if [[ $# -lt 1 ]]; then
 		echo "No channel argument or alias supplied"
-	elif [[ $# -lt 2 ]]; then
-		echo "No quality argument supplied"
 	else
 		# Check if it is an alias or url given
 		determine $1
-		if [[ $? == 0 ]]; then
-			livestreamer $1 $2
+		val=$?
+
+		# Check if quality argument given, default 'best'
+		if [[ $# == 1 ]]; then
+			quality="best"
+		else
+			quality=$2
+		fi
+		
+		if [[ $val == 0 ]]; then
+			livestreamer $1 $quality
 		else
 			while read -r line; do
 				if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
@@ -228,7 +237,7 @@ stream() {
 					fi
 				fi
 			done < $channel
-			livestreamer $url $2
+			livestreamer $url $quality
 		fi
 	fi
 }
