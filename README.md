@@ -4,6 +4,7 @@ A wrapper for livestreamer, written as a bash script.
 
 ## Dependencies
 - livestreamer
+- GNU Parallel
 
 #### NOTE:
 
