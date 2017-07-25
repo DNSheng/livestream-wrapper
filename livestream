@@ -30,7 +30,7 @@ help () {
 	echo "Options:"
 	echo "	help	- Display help information."
 	echo "	add	- Add an alias, or overwite an existing one [ALIAS] [CHANNEL_URL]"
-	echo "	remove	- Remove an alias. [ALIAS]"
+	echo "	remove	- Remove a single alias, or all aliases associated with a URL [ALIAS/CHANNEL_URL]"
 	echo "	list	- List all aliases and corresponding URLs"
 	echo "	ping	- Ping all aliased channels, or a specific alias/channel"
 	echo "		  for online availability"
@@ -50,6 +50,7 @@ help () {
 }
 
 # Add a channel and alias
+# Input:	[Alias URL]
 add () {
 	# Create new channel list if none found
 	if [ ! -e $channel ]; then
@@ -66,7 +67,7 @@ add () {
 	fi
 
 	# Check if alias exists
-	_match $1
+	_match_alias $1
 	if [[ $? == 1 ]]; then
 		# Alias exists, overwrite prompt
 		echo "Warning: Alias already exists. Overwrite? (Y/N)"
@@ -91,16 +92,32 @@ add () {
 }
 
 # Remove a channel and alias
+# Input:	Alias/URL
 remove() {
-	#Check if alias exists
-	_match $1
+	_determine $1
 	if [[ $? == 0 ]]; then
-		# Alias not found
-		echo "Alias not found, exiting."
+		# Remove URL
+		# Check if URL exists
+		_match_url $1
+		if [[ $? == 0 ]]; then
+			# URL not found
+			echo "URL not found, exiting..."
+		else
+			# URL found
+			#echo "Removing: $1"
+			sed -i "/$1/d" $channel
+		fi
 	else
-		# Alias found, remove
-		#echo "Removing $1..."
-		sed -i "/$1/d" $channel
+		#Check if alias exists
+		_match_alias $1
+		if [[ $? == 0 ]]; then
+			# Alias not found
+			echo "Alias not found, exiting..."
+		else
+			# Alias found, remove
+			#echo "Removing $1..."
+			sed -i "/$1/d" $channel
+		fi
 	fi
 }
 
@@ -157,7 +174,7 @@ ping () {
 		else
 			# Get alias and ping
 			# Check existence of alias
-			_match $1
+			_match_alias $1
 			if [[ $? == 0 ]]; then
 				echo "Alias not found: $1"
 			else
@@ -214,6 +231,7 @@ _alias_for_url() {
 }
 
 # Get all status
+# Input:	[Alias URL]
 _get_all_status() {
 	alias=$(echo $1 | cut -d " " -f 1)
 	url=$(echo $1 | cut -d " " -f 2)
@@ -228,6 +246,7 @@ _get_all_status() {
 }
 
 # Print the status of the channel
+# Input:	URL
 _get_status() {
 	error=$(livestreamer -j $1 | grep error)
 	if [[ $error != "" ]]; then
@@ -238,10 +257,11 @@ _get_status() {
 }
 
 # Given an alias, read through list and return channel url
-# Returns:
+# Input:	Alias
+# Output:
 #		0 - Alias not found
 #		1 - Alias found
-_match() {
+_match_alias() {
 	#echo "Matching with $1"
 	while read -r line; do
 		if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
@@ -256,9 +276,26 @@ _match() {
 	return 0
 }
 
+# Given a URL, check for at least one existence in list
+# Input:	URL
+# Output:	0 - URL not found
+#		1 - URL found
+_match_url() {
+	while read -r line; do
+		if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
+			url=$(echo $line | cut -d " " -f 2)
+			if [[ $url == $1 ]]; then
+				return 1
+			fi
+		fi
+	done < $channel
+	return 0
+}
+
 # Default behaviour, check if unknown command entered. Else, start stream
+# Input:	[URL/Alias/Command Quality]
 defensive() {
-	_match $1
+	_match_alias $1
 	match_val=$?
 	url=$(echo $1 | grep '\.')
 	
@@ -272,6 +309,7 @@ defensive() {
 }
 
 # Check for arguments and alias/url, start stream
+# Input:	[URL/Alias {Quality}]
 _stream() {
 	if [[ $# -lt 1 ]]; then
 		echo "No channel argument or alias supplied"
@@ -304,7 +342,8 @@ _stream() {
 }
 
 # Distinguish between url and alias (URLs have a '.' char)
-# Return:
+# Input:	URL/Alias
+# Output:
 #		0 - URL
 #		1 - Alias
 _determine() {

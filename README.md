@@ -42,6 +42,12 @@ Removing aliases is done by the command:
 ```
 livestream remove ALIAS
 ```
+
+URLs can also removed along with all associated aliases:
+```
+livestream remove URL
+```
+
  Aliases can also be removed by modifying the file within the config folder.
  
 #### Using aliases (playing streams)
@@ -89,5 +95,3 @@ Pinging is slow, especially if pinging all aliased channels as it is done so con
 	- livestream untag CHANNEL TAG
 	- livestream untag CHANNEL *
   	- Use tags to list, ping
-  - Remove channels
-  	- (Removes all aliases associated with the channel)
