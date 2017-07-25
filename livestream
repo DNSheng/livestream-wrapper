@@ -66,7 +66,7 @@ add () {
 	fi
 
 	# Check if alias exists
-	match $1
+	_match $1
 	if [[ $? == 1 ]]; then
 		# Alias exists, overwrite prompt
 		echo "Warning: Alias already exists. Overwrite? (Y/N)"
@@ -93,7 +93,7 @@ add () {
 # Remove a channel and alias
 remove() {
 	#Check if alias exists
-	match $1
+	_match $1
 	if [[ $? == 0 ]]; then
 		# Alias not found
 		echo "Alias not found, exiting."
@@ -140,27 +140,33 @@ list() {
 # Scan through specific channel (if specified), or all channels, checking for activity
 ping () {
 	echo -e "\nOnline status:"
+	printf "%-14s %-10s %-30s\n" "[STATUS]" "[ALIAS]" "[URL]"
 	echo "----------------------------------------------------"
 
 	if [[ $1 != "" ]]; then
 		# Ping specific alias/url
-		determine $1
+		_determine $1
 		if [[ $? == 0 ]]; then
 			# Ping url
-			get_status $1
+			# Get alias (if it exists)
+			_alias_for_url $1
+			if [[ $? == 0 ]]; then
+				alias="[NONE]"
+			fi
+			_get_status $1
 		else
 			# Get alias and ping
 			# Check existence of alias
-			match $1
+			_match $1
 			if [[ $? == 0 ]]; then
-				echo "Alias not found"
+				echo "Alias not found: $1"
 			else
 				while read -r line; do
 					if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
 						alias=$(echo $line | cut -d " " -f 1)
 						if [[ $alias == $1 ]]; then
 							url=$(echo $line | cut -d " " -f 2)
-							get_status $url
+							_get_status $url
 						fi
 					fi
 				done < $channel
@@ -181,16 +187,34 @@ ping () {
 			fi
 		done < $channel
 		# Export get_all_status
-		export -f get_all_status
+		export -f _get_all_status
 		# Use the list and feed to get_all_status in parallel
 		# Tinker with -j# value
-		echo -e "${list}" | parallel -j0 -k get_all_status
+		echo -e "${list}" | parallel -j0 -k _get_all_status
 	fi
 	echo ""
 }
 
+# Get alias for URL from list
+# Input:	URL
+# Output:
+#		0 - Alias not found
+#		1 - Alias found
+_alias_for_url() {
+	while read -r line; do
+		if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
+			url=$(echo $line | cut -d " " -f 2)
+			if [[ $url == $1 ]]; then
+				alias=$(echo $line | cut -d " " -f 1)
+				return 1
+			fi
+		fi
+	done < $channel
+	return 0
+}
+
 # Get all status
-get_all_status() {
+_get_all_status() {
 	alias=$(echo $1 | cut -d " " -f 1)
 	url=$(echo $1 | cut -d " " -f 2)
 
@@ -204,7 +228,7 @@ get_all_status() {
 }
 
 # Print the status of the channel
-get_status() {
+_get_status() {
 	error=$(livestreamer -j $1 | grep error)
 	if [[ $error != "" ]]; then
 		printf "\e[0;31m%-14s\e[0m %-10s %-30s\n" "OFFLINE" "$alias" "$url"
@@ -217,7 +241,7 @@ get_status() {
 # Returns:
 #		0 - Alias not found
 #		1 - Alias found
-match() {
+_match() {
 	#echo "Matching with $1"
 	while read -r line; do
 		if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
@@ -234,7 +258,7 @@ match() {
 
 # Default behaviour, check if unknown command entered. Else, start stream
 defensive() {
-	match $1
+	_match $1
 	match_val=$?
 	url=$(echo $1 | grep '\.')
 	
@@ -243,17 +267,17 @@ defensive() {
 		echo "Error: Unknown command"
 		echo -e "Use the \"help\" command to display all commands."
 	else
-		stream $1 $2
+		_stream $1 $2
 	fi
 }
 
 # Check for arguments and alias/url, start stream
-stream() {
+_stream() {
 	if [[ $# -lt 1 ]]; then
 		echo "No channel argument or alias supplied"
 	else
 		# Check if it is an alias or url given
-		determine $1
+		_determine $1
 		val=$?
 
 		# Check if quality argument given, default 'best'
@@ -283,7 +307,7 @@ stream() {
 # Return:
 #		0 - URL
 #		1 - Alias
-determine() {
+_determine() {
 	url=$(echo $1 | grep '\.')
 	if [[ $url == "" ]]; then
 		return 1

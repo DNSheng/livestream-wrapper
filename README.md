@@ -84,3 +84,10 @@ Pinging is slow, especially if pinging all aliased channels as it is done so con
     - Can't be done with only livestreamer, need another tool
   - Add commands to reorder alias list (low priority)
   - Checking channel status may need to be fixed if found unreliable
+  - Add tags to aliases (website, genre, game, etc.)
+  	- livestream tag CHANNEL TAG
+	- livestream untag CHANNEL TAG
+	- livestream untag CHANNEL *
+  	- Use tags to list, ping
+  - Remove channels
+  	- (Removes all aliases associated with the channel)
