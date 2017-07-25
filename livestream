@@ -7,7 +7,7 @@
 #	- GNU Parallel
 #
 # Alias notes:
-# 	- Aliases must not include '.'
+# 	- Aliases must not include special characters (alphanum only)
 #	- Aliases are case-sensitive
 #	- Aliases are unique
 #	- Aliases can not have same name as commands
@@ -15,8 +15,10 @@
 # DNSheng, 2017
 
 # TODO:
+#	- Carry over arguments to livestreamer
 #	- Display title of streams (not possible just using livestreamer)
-#	- Commands to reorder stream list
+#	- Prioritize ONLINE streams to top of list when pinging
+#	- Strengthen alphanum alias restriction
 
 # Location of channel list
 channel="/home/$USER/.config/livestreamer/channels.txt"
@@ -67,8 +69,8 @@ add () {
 	fi
 
 	# Check if alias exists
-	_match_alias $1
-	if [[ $? == 1 ]]; then
+	_match $1
+	if [[ $? == 2 ]]; then
 		# Alias exists, overwrite prompt
 		echo "Warning: Alias already exists. Overwrite? (Y/N)"
 		read input
@@ -81,6 +83,7 @@ add () {
 		fi
 	else
 		# Check if alias contains '.'
+		# TODO: Strengthen for alphanum only
 		defense=$(echo $1 | grep '\.')
 		if [[ $defense != "" ]]; then
 			echo "Warning: Invalid alias (contains '.' character)"
@@ -94,30 +97,17 @@ add () {
 # Remove a channel and alias
 # Input:	Alias/URL
 remove() {
-	_determine $1
-	if [[ $? == 0 ]]; then
-		# Remove URL
-		# Check if URL exists
-		_match_url $1
-		if [[ $? == 0 ]]; then
-			# URL not found
-			echo "URL not found, exiting..."
-		else
-			# URL found
-			#echo "Removing: $1"
-			sed -i "/$1/d" $channel
-		fi
+	_match $1
+	return_code=$?
+	if [[ $return_code -eq 1 ]]; then 
+		# This is really hacky, might not work for some sites
+		hack=$(echo $1 | cut -d "/" -f 2)
+		# Added '$' for end of line, otherwise every URL with that keyword is deleted
+		sed -i "/$hack$/d" $channel
+	elif [[ $return_code -eq 2 ]]; then
+		sed -i "/$1 /d" $channel
 	else
-		#Check if alias exists
-		_match_alias $1
-		if [[ $? == 0 ]]; then
-			# Alias not found
-			echo "Alias not found, exiting..."
-		else
-			# Alias found, remove
-			#echo "Removing $1..."
-			sed -i "/$1/d" $channel
-		fi
+		echo "Alias/URL not found, exiting..."
 	fi
 }
 
@@ -134,6 +124,7 @@ list() {
 			alias=$(echo $line | cut -d " " -f 1)
 
 			# Check for a '.' character in each alias
+			# TODO: Check for all non-alphanum aliases
 			defense=$(echo $alias | grep '\.')
 			if [[ $defense != "" ]]; then
 				warning=1
@@ -148,7 +139,7 @@ list() {
 	
 	if [[ $warning != 0 ]]; then
 		echo ""
-		echo "Warning: Invalid alias(es) found:$affected"
+		echo "Warning: Invalid alias(es) found: $affected"
 		echo "Please remove from the list"
 	fi
 	echo ""
@@ -156,6 +147,7 @@ list() {
 
 # Scan through specific channel (if specified), or all channels, checking for activity
 ping () {
+	# TODO: Print error if invalid before the table below
 	echo -e "\nOnline status:"
 	printf "%-14s %-10s %-30s\n" "[STATUS]" "[ALIAS]" "[URL]"
 	echo "----------------------------------------------------"
@@ -174,19 +166,12 @@ ping () {
 		else
 			# Get alias and ping
 			# Check existence of alias
-			_match_alias $1
+			_match $1
 			if [[ $? == 0 ]]; then
 				echo "Alias not found: $1"
 			else
-				while read -r line; do
-					if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
-						alias=$(echo $line | cut -d " " -f 1)
-						if [[ $alias == $1 ]]; then
-							url=$(echo $line | cut -d " " -f 2)
-							_get_status $url
-						fi
-					fi
-				done < $channel
+				_url_for_alias $1
+				_get_status $url
 			fi
 		fi
 	else
@@ -203,7 +188,8 @@ ping () {
 				fi
 			fi
 		done < $channel
-		# Export get_all_status
+		# Export get_all_status() and _get_status() (due to dependency)
+		export -f _get_status
 		export -f _get_all_status
 		# Use the list and feed to get_all_status in parallel
 		# Tinker with -j# value
@@ -230,19 +216,30 @@ _alias_for_url() {
 	return 0
 }
 
+# Get URL for alias from list
+# Input:	Alias
+# Output:	0 - URL not found
+#		1 - URL found
+_url_for_alias() {
+	while read -r line; do
+		if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
+			alias=$(echo $line | cut -d " " -f 1)
+			if [[ $alias == $1 ]]; then
+				url=$(echo $line | cut -d " " -f 2)
+				return 1
+			fi
+		fi
+	done < $channel
+	return 0
+}
+
 # Get all status
 # Input:	[Alias URL]
 _get_all_status() {
 	alias=$(echo $1 | cut -d " " -f 1)
 	url=$(echo $1 | cut -d " " -f 2)
 
-	error=$(livestreamer -j $url | grep error)
-	if [[ $error != "" ]]; then
-		printf "\e[0;31m%-14s\e[0m %-10s %-30s\n" "OFFLINE" "$alias" "$url"
-	else
-		printf "\e[0;32m%-14s\e[0m %-10s %-30s\n" "ONLINE" "$alias" "$url"
-	fi
-
+	_get_status $url
 }
 
 # Print the status of the channel
@@ -256,36 +253,22 @@ _get_status() {
 	fi
 }
 
-# Given an alias, read through list and return channel url
-# Input:	Alias
-# Output:
-#		0 - Alias not found
-#		1 - Alias found
-_match_alias() {
-	#echo "Matching with $1"
+# Given either a URL or alias, check for existence in list
+# Input:	URL/Alias
+# Output:	0 - Neither found
+#		1 - URL found
+#		2 - Alias found
+#		3 - Tag found		(CURRENTLY UNUSED)
+_match() {
 	while read -r line; do
 		if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
 			alias=$(echo $line | cut -d " " -f 1)
-			if [[ $alias == $1 ]]; then
-				#echo "MATCH FOUND"
-				url=$(echo $line | cut -d " " -f 2)
-				return 1 
-			fi
-		fi
-	done < $channel
-	return 0
-}
-
-# Given a URL, check for at least one existence in list
-# Input:	URL
-# Output:	0 - URL not found
-#		1 - URL found
-_match_url() {
-	while read -r line; do
-		if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
 			url=$(echo $line | cut -d " " -f 2)
 			if [[ $url == $1 ]]; then
 				return 1
+			fi
+			if [[ $alias == $1 ]]; then
+				return 2
 			fi
 		fi
 	done < $channel
@@ -295,8 +278,9 @@ _match_url() {
 # Default behaviour, check if unknown command entered. Else, start stream
 # Input:	[URL/Alias/Command Quality]
 defensive() {
-	_match_alias $1
+	_match $1
 	match_val=$?
+	# TODO: Strengthen for alpha num. checking
 	url=$(echo $1 | grep '\.')
 	
 	# Only accept valid URL or alias
@@ -316,7 +300,7 @@ _stream() {
 	else
 		# Check if it is an alias or url given
 		_determine $1
-		val=$?
+		is_alias=$?
 
 		# Check if quality argument given, default 'best'
 		if [[ $# == 1 ]]; then
@@ -325,17 +309,10 @@ _stream() {
 			quality=$2
 		fi
 		
-		if [[ $val == 0 ]]; then
+		if [[ $is_alias == 0 ]]; then
 			livestreamer $1 $quality
 		else
-			while read -r line; do
-				if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
-					alias=$(echo $line | cut -d " " -f 1)
-					if [[ $alias == $1 ]]; then
-						url=$(echo $line | cut -d " " -f 2)
-					fi
-				fi
-			done < $channel
+			_url_for_alias $1
 			livestreamer $url $quality
 		fi
 	fi

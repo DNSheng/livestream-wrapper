@@ -23,7 +23,7 @@ Aliases are stored in the same directory as the livestreamer config file:
 
 #### Adding aliases:
 
-Aliases are case-sensitive and must be unique and not contain the '.' (period) character.
+Aliases are case-sensitive and must be unique and not contain special characters (alphanumeric only).
 
 Aliases must not have the same name as commands.
 
@@ -95,3 +95,5 @@ Pinging is slow, especially if pinging all aliased channels as it is done so con
 	- livestream untag CHANNEL TAG
 	- livestream untag CHANNEL *
   	- Use tags to list, ping
+  - Prioritize listing ONLINE channels on top when pinging
+  - Strengthen alpha-num alias requirements
