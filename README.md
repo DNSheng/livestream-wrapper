@@ -8,8 +8,7 @@ A wrapper for livestreamer, written as a bash script.
 
 #### NOTE:
 
-As the wrapper has yet to transfer other arguments to livestreamer, make sure that livestreamer's config file has been set up
-to ensure that custom options such as authenticator tokens and video players have been set.
+Set up livestreamer's config file (video player, tokens, etc.) to make using the wrapper simple.
 
 ## Aliases:
 
@@ -23,7 +22,7 @@ Aliases are stored in the same directory as the livestreamer config file:
 
 #### Adding aliases:
 
-Aliases are case-sensitive and must be unique and not contain special characters (alphanumeric only).
+Aliases are case-sensitive, unique, and must not contain special characters (alpha-numeric only).
 
 Aliases must not have the same name as commands.
 
@@ -83,6 +82,15 @@ livestream ping
 ```
 
 Pinging is slow, especially if pinging all aliased channels as it is done so concurrently.
+
+## Options
+
+Additional options and arguments can be passed to livestreamer if so wished.
+```
+livestream [OPTION] ALIAS
+```
+
+Thus, any input to livestreamer should work for the wrapper.
 
 ## TODO:
   - Transfer all arguments beyond $channel and $quality to livestreamer

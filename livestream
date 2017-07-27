@@ -13,9 +13,11 @@
 #	- Aliases can not have same name as commands
 #
 # DNSheng, 2017
-
+#
+# NEW:
+#	- Additional option arguments now pass to livestreamer
+#
 # TODO:
-#	- Carry over arguments to livestreamer
 #	- Display title of streams (not possible just using livestreamer)
 #	- Prioritize ONLINE streams to top of list when pinging
 #	- Strengthen alphanum alias restriction
@@ -26,28 +28,24 @@ channel="/home/$USER/.config/livestreamer/channels.txt"
 # Help
 help () {
 	echo ""
-	echo "livestream [COMMAND] [ARGUMENTS]"
+	echo "livestream [OPTIONS] [COMMAND] [ARGUMENTS]"
 	echo ""
 	echo "An custom wrapper for livestreamer."
 	echo "Options:"
 	echo "	help	- Display help information."
-	echo "	add	- Add an alias, or overwite an existing one [ALIAS] [CHANNEL_URL]"
-	echo "	remove	- Remove a single alias, or all aliases associated with a URL [ALIAS/CHANNEL_URL]"
-	echo "	list	- List all aliases and corresponding URLs"
+	echo "	add	- Add an alias, or overwite an existing one."
+	echo "	remove	- Remove a single alias, or all aliases associated with a URL."
+	echo "	list	- List all aliases and corresponding URLs."
 	echo "	ping	- Ping all aliased channels, or a specific alias/channel"
-	echo "		  for online availability"
+	echo "		  for online availability."
 	echo ""
-	echo "Uses like livestreamer normally, but with added functionality (aliasing, pinging, etc.)"
-	echo "livestream [CHANNEL] [QUALITY]"
-	echo "If no [QUALITY] value entered, defaults to 'best'"
-	echo "Enter the alias/url and quality like normal."
-	echo "Currently, additional arguments do not carry over."
+	echo "Works like livestreamer normally, but with added functionality (aliasing, pinging, etc.)"
+	echo "If no quality value is entered, default of 'best' quality is used."
+	echo "Enter the alias/url and quality like with livestreamer (in order, after all options)."
 	echo "The alias file is located at $channel"
 	echo ""
-	echo "NOTE: - As additional arguments do not carry over, the"
-	echo "        config file for livestreamer must be set."
-	echo "      - The period character '.' cannot be included in an alias."
-	echo "      - Aliases are unique and case-sensitive."
+	echo "NOTE: - Set the config file for livestreamer to enter less commands"
+	echo "      - Aliases are unique, case-sensitive, and must be alpha-numeric"
 	echo ""
 }
 
@@ -278,18 +276,101 @@ _match() {
 # Default behaviour, check if unknown command entered. Else, start stream
 # Input:	[URL/Alias/Command Quality]
 defensive() {
-	_match $1
-	match_val=$?
-	# TODO: Strengthen for alpha num. checking
-	url=$(echo $1 | grep '\.')
-	
-	# Only accept valid URL or alias
-	if [[ $match_val == 0 ]] && [[ $url == "" ]]; then
-		echo "Error: Unknown command"
-		echo -e "Use the \"help\" command to display all commands."
+	# Check for # of args
+	if [[ $# == 1 ]]; then
+		# Either an command, option, or alias/URL, default quality best
+		_match $1
+		match_val=$?
+		# TODO: Strengthen for alphanum aliases
+		url=$(echo $1 | grep '\.')
+		# If it begins with a dash, then it's a livestreamer arg
+		first=${1:0:1}
+		if [[ $match_val == 0 ]] && [[ $url == "" ]] && [[ $first != "-" ]]; then
+			# Not an alias, URL, or livestreamer arg, and didn't go through the case
+			# Therefore, unknown command
+			echo "Error: Unknown command"
+			echo e "Use the \"help\" command to display all commands."
+		else
+			_new_stream $1 $2 
+		fi
 	else
-		_stream $1 $2
+		# Multiple args, could be anything
+		_new_stream $@
 	fi
+}
+
+# EXPERIMENTAL
+# Check for arguments and alias/url, start stream
+# Input:	[(Livestreamer Args/URL/Alias) {Quality}]
+
+_new_stream() {
+	if [[ $2 == "" ]]; then
+		# 1 arg, check if stream or livestreamer arg
+		if [[ $first == "-" ]]; then
+			# Is livestream arg
+			# Give help info for wrapper too
+			case $1 in
+				"--help"	) _help_disclaimer;;
+				"-h"		) _help_disclaimer;;
+			esac
+			livestreamer $1
+		else
+			# Default to best quality
+			quality="best"
+			# Determine if alias, get URL and stream
+			_determine $1
+			is_alias=$?
+			if [[ $is_alias == 0 ]]; then
+				livestreamer $1 $quality
+			else
+				_url_for_alias $1
+				livestreamer $url $quality
+			fi
+		fi
+	else
+		# Multiple args
+		# Get last 2 args
+		tail_arg=${@: -1}		# Last arg
+		prev_arg=${@: -2:1}		# Second last arg
+
+		_match $prev_arg
+		mat_val=$?
+		_determine $prev_arg
+		det_val=$?
+
+		if [[ $mat_val == 1 ]] && [[ $det_val == 0 ]]; then
+			# $prev_arg is url, $tail_arg is quality
+			livestreamer $@
+		elif [[ $mat_val == 0 ]] && [[ $det_val == 1 ]]; then
+			# $prev_arg not channel/url, $tail_arg is
+			# Default to best quality
+			# Check if $tail_arg is URL or alias, act accordingly
+			_match $tail_arg
+			if [[ $? == 1 ]]; then
+				livestreamer $@ best
+			else
+				_url_for_alias $tail_arg
+				# Cut alias from args
+				set -- "${@:1:$(($#-1))}"
+				livestreamer $@ $url best
+			fi
+		else
+			# $prev_arg is alias, $tail_arg is quality
+			_url_for_alias $prev_arg
+			set -- "${@:1:$(($#-2))}"
+			livestreamer $@ $url $tail_arg
+		fi
+	fi
+}
+
+# Info on wrapper help if livestreamer help is called
+_help_disclaimer(){
+	echo "--------------------------------------------------------------------------"
+	echo "For help with the livestreamer-wrapper is needed, call the "help" command:"
+	echo ""
+	echo -e "\tlivestream help"
+	echo "--------------------------------------------------------------------------"
+	echo ""
 }
 
 # Check for arguments and alias/url, start stream
@@ -339,5 +420,5 @@ case $1 in
 	"remove"	) remove $2;;
 	"list"		) list;;
 	"help"		) help;;
-	*		) defensive $1 $2;;
+	*		) defensive $@;;
 esac
