@@ -81,7 +81,7 @@ Pinging without an argument will display the status of all aliased channels:
 livestream ping
 ```
 
-Pinging is slow, especially if pinging all aliased channels as it is done so concurrently.
+Pinging may take some time and heavily utilizes the CPU as it is poorly optimized.
 
 ## Options
 
@@ -103,3 +103,5 @@ Thus, any input to livestreamer should work for the wrapper.
   	- Use tags to list, ping
   - Prioritize listing ONLINE channels on top when pinging
   - Strengthen alpha-num alias requirements
+  - Make GNU Parallel dependency optional
+  	- Find another way or use concurrent if not installed

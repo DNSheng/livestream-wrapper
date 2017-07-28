@@ -21,6 +21,9 @@
 #	- Display title of streams (not possible just using livestreamer)
 #	- Prioritize ONLINE streams to top of list when pinging
 #	- Strengthen alphanum alias restriction
+#	- Optional GNU Parallel dependency
+#		- If possible, use something else
+#		- Otherwise, have condition to do original sequential ping
 
 # Location of channel list
 channel="/home/$USER/.config/livestreamer/channels.txt"
@@ -114,8 +117,8 @@ list() {
 	warning=0
 	affected=""
 
-	printf "\n%-10s %-30s\n" "[ALIAS]" "[URL]"
-	echo "----------------------------------------------------"
+	printf "\n%-15s %-30s\n" "[ALIAS]" "[URL]"
+	echo "---------------------------------------------------------"
 
 	while read -r line; do
 		if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
@@ -147,8 +150,8 @@ list() {
 ping () {
 	# TODO: Print error if invalid before the table below
 	echo -e "\nOnline status:"
-	printf "%-14s %-10s %-30s\n" "[STATUS]" "[ALIAS]" "[URL]"
-	echo "----------------------------------------------------"
+	printf "%-14s %-15s %-30s\n" "[STATUS]" "[ALIAS]" "[URL]"
+	echo "---------------------------------------------------------"
 
 	if [[ $1 != "" ]]; then
 		# Ping specific alias/url
@@ -245,9 +248,9 @@ _get_all_status() {
 _get_status() {
 	error=$(livestreamer -j $1 | grep error)
 	if [[ $error != "" ]]; then
-		printf "\e[0;31m%-14s\e[0m %-10s %-30s\n" "OFFLINE" "$alias" "$url"
+		printf "\e[0;31m%-14s\e[0m %-15s %-30s\n" "OFFLINE" "$alias" "$url"
 	else
-		printf "\e[0;32m%-14s\e[0m %-10s %-30s\n" "ONLINE" "$alias" "$url"
+		printf "\e[0;32m%-14s\e[0m %-15s %-30s\n" "ONLINE" "$alias" "$url"
 	fi
 }
 
