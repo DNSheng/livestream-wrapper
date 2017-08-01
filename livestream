@@ -29,7 +29,7 @@
 channel="/home/$USER/.config/livestreamer/channels.txt"
 
 # Help
-help () {
+help() {
 	echo ""
 	echo "livestream [OPTIONS] [COMMAND] [ARGUMENTS]"
 	echo ""
@@ -41,6 +41,7 @@ help () {
 	echo "	list	- List all aliases and corresponding URLs."
 	echo "	ping	- Ping all aliased channels, or a specific alias/channel"
 	echo "		  for online availability."
+	echo "		- NOTE: Pinging all aliased channels requires GNU Parallel dependency"
 	echo ""
 	echo "Works like livestreamer normally, but with added functionality (aliasing, pinging, etc.)"
 	echo "If no quality value is entered, default of 'best' quality is used."
@@ -54,7 +55,7 @@ help () {
 
 # Add a channel and alias
 # Input:	[Alias URL]
-add () {
+add() {
 	# Create new channel list if none found
 	if [ ! -e $channel ]; then
 		echo "Channel list does not exist, creating new list..."
@@ -102,6 +103,7 @@ remove() {
 	return_code=$?
 	if [[ $return_code -eq 1 ]]; then 
 		# This is really hacky, might not work for some sites
+		# ex: twitch.tv/day9tv => day9tv
 		hack=$(echo $1 | cut -d "/" -f 2)
 		# Added '$' for end of line, otherwise every URL with that keyword is deleted
 		sed -i "/$hack$/d" $channel
@@ -147,7 +149,7 @@ list() {
 }
 
 # Scan through specific channel (if specified), or all channels, checking for activity
-ping () {
+ping() {
 	# TODO: Print error if invalid before the table below
 	echo -e "\nOnline status:"
 	printf "%-14s %-15s %-30s\n" "[STATUS]" "[ALIAS]" "[URL]"
@@ -158,14 +160,29 @@ ping () {
 		_determine $1
 		if [[ $? == 0 ]]; then
 			# Ping url
-			# Get alias (if it exists)
-			_alias_for_url $1
-			if [[ $? == 0 ]]; then
+			# Get alias (if it exists) and channel list exists
+			if [[ -f $channel ]]; then
+				# If alias doesn't exist, $url becomes URL at bottom
+				# of channel list. $input_url preserves URL.
+				input_url=$url
+				_alias_for_url $1
+				ret_code=$?
+				url=$input_url
+			fi
+			# Set alias to [NONE] if not in list or list doesn't exist
+			if [[ $ret_code == 0 ]] || [[ ! -f $channel ]]; then
 				alias="[NONE]"
 			fi
 			_get_status $1
 		else
 			# Get alias and ping
+
+			# Check if channel list exists before looking for alias
+			if [[ ! -f $channel ]]; then
+				echo "No channel list file found. Aborting..."
+				exit
+			fi
+
 			# Check existence of alias
 			_match $1
 			if [[ $? == 0 ]]; then
@@ -176,7 +193,19 @@ ping () {
 			fi
 		fi
 	else
-		# Create a list of [ALIAS] and [URL]
+		# Check if channel list exists
+		if [[ ! -f $channel ]]; then
+			echo "No channel list found. Aborting..."
+			exit
+		fi
+		# Check if GNU Parallel exists
+		parallel_loc=$(whereis parallel | cut -d ":" -f 2)
+		if [[ $parallel_loc == "" ]]; then
+			echo "Missing GNU Parallel dependency. Aborting..."
+			exit
+		fi
+
+		# Create a list of [ALIAS] and [URL] separated by newline
 		list=""
 		while read -r line; do
 			if [[ ${line:0:1} != "#" ]] && [[ $line != "" ]]; then
@@ -189,12 +218,18 @@ ping () {
 				fi
 			fi
 		done < $channel
-		# Export get_all_status() and _get_status() (due to dependency)
+		# Var holds online channel output
+		online=""
+		offline=""
+		# Export _get_all_status() and _get_status() (due to dependency)
 		export -f _get_status
 		export -f _get_all_status
 		# Use the list and feed to get_all_status in parallel
 		# Tinker with -j# value
 		echo -e "${list}" | parallel -j0 -k _get_all_status
+		# This should prioritize printing all online channels on the top
+		##echo $online
+		##echo $offline
 	fi
 	echo ""
 }
@@ -245,12 +280,16 @@ _get_all_status() {
 
 # Print the status of the channel
 # Input:	URL
+# Output:	0 - Offline
+#		1 - Online
 _get_status() {
 	error=$(livestreamer -j $1 | grep error)
 	if [[ $error != "" ]]; then
 		printf "\e[0;31m%-14s\e[0m %-15s %-30s\n" "OFFLINE" "$alias" "$url"
+		return 0
 	else
 		printf "\e[0;32m%-14s\e[0m %-15s %-30s\n" "ONLINE" "$alias" "$url"
+		return 1
 	fi
 }
 
@@ -302,10 +341,8 @@ defensive() {
 	fi
 }
 
-# EXPERIMENTAL
 # Check for arguments and alias/url, start stream
 # Input:	[(Livestreamer Args/URL/Alias) {Quality}]
-
 _new_stream() {
 	if [[ $2 == "" ]]; then
 		# 1 arg, check if stream or livestreamer arg
@@ -416,6 +453,12 @@ _determine() {
 	fi
 }
 
+# TODO: Display chat through IRC
+# Ex:		livestream oddone chat
+chat() {
+	echo "Not done yet, come back later..."
+}
+
 # Main program
 case $1 in
 	"ping"		) ping $2;;
@@ -423,5 +466,6 @@ case $1 in
 	"remove"	) remove $2;;
 	"list"		) list;;
 	"help"		) help;;
+	"chat"		) chat;;
 	*		) defensive $@;;
 esac
